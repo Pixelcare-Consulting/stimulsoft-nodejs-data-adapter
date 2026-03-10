@@ -4,11 +4,31 @@ Version: 2025.4.1
 Build date: 2025.10.06
 License: https://www.stimulsoft.com/en/licensing/reports
 */
+
+const IDLETIMEOUTMILLIS = 30000; //* 30 seconds
+const CONNECTIONTIMEOUTMILLIS = 10000; //* 10 seconds
+const MAXCONNECTIONS = 20;
+
+const pg = require('pg');
+
+const pools = {}; //* pools cache per connection string
+
+//? using pool in pg allows you to:
+//? - reuse existing connections
+//? - limit maximum connections
+//? - automatic connection management
+//? - safe concurrent queries
+//? - retry and failover frieldy
+//? - better performance
+//? - centralize configuration
+
 exports.process = function (command, onResult) {
+  var client;
+
   var end = function (result) {
     try {
-      if (client) client.end();
-      result.adapterVersion = '2025.4.1';
+      if (client) client.release();
+      result.adapterVersion = '2026.1.0';
       onResult(result);
     } catch (e) {}
   };
@@ -21,30 +41,22 @@ exports.process = function (command, onResult) {
   var retryCount = 0;
 
   try {
-    var connect = function () {
-      client.connect(function (error) {
-        if (error) {
-          if (retryCount < maxRetries) {
-            retryCount++;
-            console.log('RETRY CONNECT ATTEMPT:', retryCount);
-            setTimeout(connect, 2000); //* wait 2s before retry
-          } else {
-            onError(error.message);
-          }
+    var connect = async function () {
+      try {
+        var pool = getPool(command.postgreConnectionString);
+        client = await pool.connect();
+        retryCount = 0;
+        onConnect();
+      } catch (error) {
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log('RETRY CONNECT ATTEMPT:', retryCount);
+          setTimeout(connect, 2000); //* wait 2s before retry
         } else {
-          retryCount = 0;
-          onConnect();
+          onError(error.message);
         }
-      });
+      }
     };
-
-    //* old connect method
-    // var connect = function () {
-    //   client.connect(function (error) {
-    //     if (error) onError(error.message);
-    //     else onConnect();
-    //   });
-    // };
 
     var query = function (queryString, parameters, maxDataRows) {
       client.query(queryString, parameters, function (error, recordset) {
@@ -65,16 +77,6 @@ exports.process = function (command, onResult) {
       });
     };
 
-    //* old query method
-    // var query = function (queryString, parameters, maxDataRows) {
-    //   client.query(queryString, parameters, function (error, recordset) {
-    //     if (error) onError(error.message);
-    //     else {
-    //       onQuery(recordset, maxDataRows);
-    //     }
-    //   });
-    // };
-
     var onConnect = function () {
       if (command.queryString) {
         if (command.command == 'Execute')
@@ -92,6 +94,7 @@ exports.process = function (command, onResult) {
           command.parameters,
           command.escapeQueryParameters
         );
+
         query(queryString, parameters, command.maxDataRows);
       } else end({ success: true });
     };
@@ -270,6 +273,19 @@ exports.process = function (command, onResult) {
       end({ success: true, columns: columns, rows: rows, types: types });
     };
 
+    var getPool = function (connectionString) {
+      if (!pools[connectionString]) {
+        pools[connectionString] = new pg.Pool({
+          connectionString: connectionString,
+          max: MAXCONNECTIONS,
+          idleTimeoutMillis: IDLETIMEOUTMILLIS,
+          connectionTimeoutMillis: CONNECTIONTIMEOUTMILLIS,
+        });
+      }
+
+      return pools[connectionString];
+    };
+
     var getConnectionStringInfo = function (connectionString) {
       var info = { port: 5432 };
 
@@ -375,7 +391,6 @@ exports.process = function (command, onResult) {
       return { queryString: result + baseSqlCommand, parameters };
     };
 
-    var pg = require('pg');
     if (command.connectionString.startsWith('postgres://'))
       command.postgreConnectionString = command.connectionString;
     else {
@@ -399,7 +414,6 @@ exports.process = function (command, onResult) {
         command.connectionStringInfo.database +
         `?ssl=${command.connectionStringInfo.ssl}`;
     }
-    var client = new pg.Client(command.postgreConnectionString);
 
     connect();
   } catch (e) {
