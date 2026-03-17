@@ -48,6 +48,8 @@ exports.process = function (command, onResult) {
         retryCount = 0;
         onConnect();
       } catch (error) {
+        console.log('CONNECTION ERROR:', error);
+
         if (retryCount < maxRetries) {
           retryCount++;
           console.log('RETRY CONNECT ATTEMPT:', retryCount);
@@ -61,6 +63,8 @@ exports.process = function (command, onResult) {
     var query = function (queryString, parameters, maxDataRows) {
       client.query(queryString, parameters, function (error, recordset) {
         if (error) {
+          console.log('QUERY ERROR:', error);
+
           if (retryCount < maxRetries) {
             retryCount++;
             console.log('RETRY QUERY ATTEMPT:', retryCount);
@@ -79,15 +83,31 @@ exports.process = function (command, onResult) {
 
     var onConnect = function () {
       if (command.queryString) {
-        if (command.command == 'Execute')
-          command.queryString =
-            'CALL ' +
-            command.queryString +
-            '(' +
-            command.parameters
-              .map((parameter) => '@' + parameter.name)
-              .join(', ') +
-            ')';
+        //* modify query string when doing command 'Execute' which can be a function or a stored procedure
+        if (command.command == 'Execute' && command?.dataSource) {
+          const paramList = command.parameters
+            .map((parameter) => '@' + parameter.name)
+            .join(', ');
+
+          if (command?.dataSource.startsWith('fn_')) {
+            //* function
+            command.queryString = `SELECT * FROM ${command.queryString}(${paramList})`;
+          } else if (command?.dataSource.startsWith('sp_')) {
+            //* stored procedure
+            command.queryString = `CALL ${command.queryString}(${paramList})`;
+          }
+
+          //* replace null values with undefined so pg skips them and PostgreSQL uses defaults
+          if (command.parameters) {
+            command.parameters.forEach((parameter) => {
+              if (parameter.value === null && parameter.typeGroup === '') {
+                parameter.value = undefined;
+              }
+            });
+          }
+        }
+
+        //* other commands will not modify the query string
 
         var { queryString, parameters } = applyQueryParameters(
           command.queryString,
@@ -287,7 +307,7 @@ exports.process = function (command, onResult) {
     };
 
     var getConnectionStringInfo = function (connectionString) {
-      var info = { port: 5432 };
+      var info = { port: 5432, ssl: 0 };
 
       for (var propertyIndex in connectionString.split(';')) {
         var property = connectionString.split(';')[propertyIndex];
