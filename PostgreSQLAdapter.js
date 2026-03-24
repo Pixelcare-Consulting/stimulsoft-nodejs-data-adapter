@@ -40,6 +40,26 @@ exports.process = function (command, onResult) {
   var maxRetries = 3;
   var retryCount = 0;
 
+  var quoteIdentifiers = function (sql) {
+    //* this will support naming convention of Prisma e.g "Role", "WorkOrder" etc
+
+    return sql.replace(
+      /\b(FROM|JOIN|INTO|UPDATE|TABLE)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b/gi,
+      (match, keyword, identifier) => {
+        //* skip if already quoted
+        if (identifier.startsWith('"')) return match;
+        //* quote only if PascalCase (first letter uppercase, has at least one lowercase letter)
+        if (
+          /^[A-Z][a-zA-Z0-9]*$/.test(identifier) &&
+          /[a-z]/.test(identifier)
+        ) {
+          return `${keyword} "${identifier}"`;
+        }
+        return match;
+      }
+    );
+  };
+
   try {
     var connect = async function () {
       try {
@@ -106,6 +126,8 @@ exports.process = function (command, onResult) {
             });
           }
         }
+
+        command.queryString = quoteIdentifiers(command.queryString);
 
         //* other commands will not modify the query string
 
