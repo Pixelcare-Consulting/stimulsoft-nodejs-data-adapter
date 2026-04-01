@@ -122,17 +122,15 @@ if (require.main === module) {
     });
   };
 
-  console.log('The DataAdapter run on port 9615');
-  console.log(
-    'To use, on the client side, you need to specify the URL of this host that handles requests:'
-  );
-  console.log('StiOptions.WebServer.url = "http://localhost:9615"');
-
   const TIMEOUT = 5 * 60 * 1000; //* 10 minutes
-
+  const PORT = 9616;
   const server = http.createServer(accept);
 
   server.timeout = TIMEOUT;
   server.keepAliveTimeout = TIMEOUT;
-  server.listen(9615);
+  server.listen(PORT);
+
+  console.log('The DataAdapter run on port 9615');
+  console.log( 'To use, on the client side, you need to specify the URL of this host that handles requests:'); //prettier-ignore
+  console.log(`StiOptions.WebServer.url = "http://localhost:${PORT}`);
 }
