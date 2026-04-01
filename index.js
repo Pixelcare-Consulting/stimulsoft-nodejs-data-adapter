@@ -134,6 +134,5 @@ if (require.main === module) {
 
   server.timeout = TIMEOUT;
   server.keepAliveTimeout = TIMEOUT;
-
-  http.createServer(accept).listen(9615);
+  server.createServer(accept).listen(9615);
 }
