@@ -130,7 +130,7 @@ if (require.main === module) {
   server.keepAliveTimeout = TIMEOUT;
   server.listen(PORT);
 
-  console.log('The DataAdapter run on port 9615');
+  console.log('The DataAdapter run on port 9616');
   console.log( 'To use, on the client side, you need to specify the URL of this host that handles requests:'); //prettier-ignore
   console.log(`StiOptions.WebServer.url = "http://localhost:${PORT}`);
 }

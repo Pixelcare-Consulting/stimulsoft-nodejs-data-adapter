@@ -81,6 +81,12 @@ exports.process = function (command, onResult) {
     };
 
     var query = function (queryString, parameters, maxDataRows) {
+      console.log(`[QUERY-${new Date().toString()}]`, {
+        queryString,
+        parameters,
+        maxDataRows,
+      });
+
       client.query(queryString, parameters, function (error, recordset) {
         if (error) {
           console.log('QUERY ERROR:', error);
@@ -102,6 +108,8 @@ exports.process = function (command, onResult) {
     };
 
     var onConnect = function () {
+      console.log(`[ONCONNECT-${new Date().toString()}]`, { command });
+
       if (command.queryString) {
         //* modify query string when doing command 'Execute' which can be a function or a stored procedure
         if (command.command == 'Execute' && command?.dataSource) {
@@ -142,6 +150,11 @@ exports.process = function (command, onResult) {
     };
 
     var onQuery = function (recordset, maxDataRows) {
+      console.log(`[ON-QUERY-${new Date().toString()}]`, {
+        recordset,
+        maxDataRows,
+      });
+
       var columns = [];
       var rows = [];
       var types = [];
@@ -316,6 +329,8 @@ exports.process = function (command, onResult) {
     };
 
     var getPool = function (connectionString) {
+      console.log(`[POOL-${new Date().toString()}]`, { connectionString });
+
       if (!pools[connectionString]) {
         pools[connectionString] = new pg.Pool({
           connectionString: connectionString,
