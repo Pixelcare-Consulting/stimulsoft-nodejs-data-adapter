@@ -122,7 +122,7 @@ if (require.main === module) {
     });
   };
 
-  const TIMEOUT = 5 * 60 * 1000; //* 10 minutes
+  const TIMEOUT = 10 * 60 * 1000; //* 10 minutes
   const PORT = 9616;
   const server = http.createServer(accept);
 

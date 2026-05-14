@@ -5,9 +5,11 @@ Build date: 2025.10.06
 License: https://www.stimulsoft.com/en/licensing/reports
 */
 
-const IDLETIMEOUTMILLIS = 30000; //* 30 seconds
-const CONNECTIONTIMEOUTMILLIS = 10000; //* 10 seconds
-const MAXCONNECTIONS = 20;
+const IDLETIMEOUTMILLIS = 60000; //* 60 seconds - number of milliseconds a client must sit idle in the pool and not be checked out
+const CONNECTIONTIMEOUTMILLIS = 60000; //* 60 seconds -  number of milliseconds to wait before timing out when connecting a new client.
+const QUERYTIMEOUTMILLIS = 9 * 60000; //* 9 minutes - number of milliseconds to wait before timing out a query.
+const MAXCONNECTIONS = 10;
+const RETRY_DELAY_MILLIS = 4000; //* 4 seconds
 
 const pg = require('pg');
 
@@ -73,7 +75,7 @@ exports.process = function (command, onResult) {
         if (retryCount < maxRetries) {
           retryCount++;
           console.log('RETRY CONNECT ATTEMPT:', retryCount);
-          setTimeout(connect, 2000); //* wait 2s before retry
+          setTimeout(connect, RETRY_DELAY_MILLIS); //* wait 2s before retry
         } else {
           onError(error.message);
         }
@@ -96,7 +98,7 @@ exports.process = function (command, onResult) {
             console.log('RETRY QUERY ATTEMPT:', retryCount);
             setTimeout(function () {
               query(queryString, parameters, maxDataRows);
-            }, 2000);
+            }, RETRY_DELAY_MILLIS);
           } else {
             onError(error.message);
           }
@@ -337,8 +339,15 @@ exports.process = function (command, onResult) {
           max: MAXCONNECTIONS,
           idleTimeoutMillis: IDLETIMEOUTMILLIS,
           connectionTimeoutMillis: CONNECTIONTIMEOUTMILLIS,
+          query_timeout: QUERYTIMEOUTMILLIS,
+          statement_timeout: QUERYTIMEOUTMILLIS,
         });
       }
+
+      //* handle pool errors to prevent crashes
+      pools[connectionString].on('error', (err) => {
+        console.error('Idle pool client error:', err.message);
+      });
 
       return pools[connectionString];
     };
